@@ -2348,6 +2348,46 @@ export async function init() {
             return String(settings.enabled_world_info);
         },
     }));
+	
+	// --- BLAEZE CUSTOM RETAIN SLASH COMMAND START ---
+	SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+        name: 'vector-retain',
+        helpString: 'Set the last N messages (Retain#) from being placed out of order or return current value if empty.',
+        returns: 'the retain value',
+        unnamedArgumentList: [
+            SlashCommandArgument.fromProps({
+                description: 'Last N messages (number >= 1).',
+                typeList: [ARGUMENT_TYPE.NUMBER],
+            }),
+        ],
+        callback: async (_args, value) => {
+            const raw = String(value ?? '').trim();
+			
+            // Jeśli komenda została wywołana bez argumentu (np. /vector-retain),
+            // zwracamy aktualną wartość.
+            if (!raw) {
+                return String(settings.protect);
+            }
+
+            const parsed = Number(raw);
+			
+            // Walidacja - Retain musi być liczbą całkowitą równą lub większą od 1
+            if (!Number.isFinite(parsed) || parsed < 1) {
+                toastr.warning('Retain# must be a number greater than or equal to 1.');
+                return '';
+            }
+
+            // Znajdź element UI, wpisz nową wartość i zmuś go do wywołania eventu 'input'.
+            // To automatycznie odpali funkcję saveSettingsDebounced() zapisaną wyżej w pliku.
+            $('#vectors_protect')
+                .val(parsed)
+                .trigger('input');
+
+            // Zwróć nową wartość do systemu SillyTavern (przydatne przy pisaniu skryptów STScript)
+            return String(settings.protect);
+        },
+    }));
+	// --- BLAEZE CUSTOM RETAIN SLASH COMMAND END ---
 
     registerDebugFunction('purge-everything', 'Purge all vector indices', 'Obliterate all stored vectors for all sources. No mercy.', async () => {
         if (!confirm('Are you sure?')) {

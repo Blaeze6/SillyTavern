@@ -58,3 +58,7 @@ public/scripts/extensions/third-party
 yarn.lock
 *.code-workspace
 test-results/
+desktop.ini
+llama-bin-win-cuda-13.3-x64/
+StartVs.bat
+StartVsLLM.bat
