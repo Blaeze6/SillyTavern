@@ -244,23 +244,30 @@
                 </label>
             </div>
 
+
             <!--  BLAEZE UI PREFIX CONFIG START -->
             <div class="vector-storage-advanced-settings">
                 <hr class="sys_prompt_divider">
-                <label><b>Asymmetric Model Prefixes</b></label>
-                <small>Leave empty if using symmetric models (like standard Qwen or BGE).</small>
-            
+                <label><b>Asymmetric Model Prefixes</b></label><br>
+                <small style="display: block; margin-bottom: 10px;">Leave empty if using symmetric models (like BGE or Nomic).</small>
+
                 <div class="menu_row">
                     <label for="vector_search_prefix_input">Vector Search Prefix (Query):</label>
                     <input id="vector_search_prefix_input" type="text" class="text_pole" placeholder="Query: " />
                 </div>
-            
                 <div class="menu_row">
                     <label for="vector_ingestion_prefix_input">Vector Ingestion Prefix (Document):</label>
                     <input id="vector_ingestion_prefix_input" type="text" class="text_pole" placeholder="Document: " />
                 </div>
+
+                <!-- ensure space checkbox -->
+                <label class="checkbox_label" for="vector_prefix_force_space" title="Ensures exactly one space is added after the prefix. Uncheck if using special tokens like <query>.">
+                    <input id="vector_prefix_force_space" type="checkbox" class="checkbox" checked>
+                    <span>Ensure single trailing space</span>
+                </label>
             </div>
             <!--  BLAEZE UI PREFIX CONFIG END -->
+
 
             <hr>
 
