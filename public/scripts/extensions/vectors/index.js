@@ -117,6 +117,11 @@ const settings = {
     enabled_world_info: false,
     enabled_for_all: false,
     max_entries: 5,
+
+    // --- BLAEZE CUSTOM: ASYMMETRIC PREFIXES ---
+    search_prefix: '',
+    ingestion_prefix: '',
+    // ------------------------------------------
 };
 
 const moduleWorker = new ModuleWorkerWrapper(synchronizeChat);
@@ -1050,19 +1055,26 @@ async function getSavedHashes(collectionId) {
  */
 async function insertVectorItems(collectionId, items) {
     throwIfSourceInvalid();
-
-    const args = await getAdditionalArgs(items.map(x => x.text));
+    // BLAEZE CUSTOM: Dodanie Prefixu Zapisywania (Document)
+    // Tworzymy nową tablicę, modyfikując tekst, ale ZACHOWUJĄC oryginalny hash!
+    const processedItems = items.map(item => {
+        let processedText = item.text;
+        if (settings.ingestion_prefix && !processedText.startsWith(settings.ingestion_prefix)) {
+            processedText = settings.ingestion_prefix + processedText;
+        }
+        return { ...item, text: processedText };
+    });
+    const args = await getAdditionalArgs(processedItems.map(x => x.text)); // Zmienione
     const response = await fetch('/api/vector/insert', {
         method: 'POST',
         headers: getRequestHeaders(),
         body: JSON.stringify({
             ...getVectorsRequestBody(args),
             collectionId: collectionId,
-            items: items,
+            items: processedItems, // Zmienione: wysyłamy prefixowany tekst do bazy
             source: settings.source,
         }),
     });
-
     if (!response.ok) {
         throw new Error(`Failed to insert vector items for collection ${collectionId}`);
     }
@@ -1149,14 +1161,19 @@ async function deleteVectorItems(collectionId, hashes) {
  * @returns {Promise<{ hashes: number[], metadata: object[]}>} - Hashes of the results
  */
 async function queryCollection(collectionId, searchText, topK) {
-    const args = await getAdditionalArgs([searchText]);
+    // BLAEZE CUSTOM: Dodanie Prefixu Wyszukiwania
+    let processedSearchText = searchText;
+    if (settings.search_prefix && !processedSearchText.startsWith(settings.search_prefix)) {
+        processedSearchText = settings.search_prefix + processedSearchText;
+    }
+    const args = await getAdditionalArgs([processedSearchText]); // Zmienione
     const response = await fetch('/api/vector/query', {
         method: 'POST',
         headers: getRequestHeaders(),
         body: JSON.stringify({
             ...getVectorsRequestBody(args),
             collectionId: collectionId,
-            searchText: searchText,
+            searchText: processedSearchText, // Zmienione
             topK: topK,
             source: settings.source,
             threshold: settings.score_threshold,
@@ -1178,25 +1195,29 @@ async function queryCollection(collectionId, searchText, topK) {
  * @param {number} threshold - Score threshold
  * @returns {Promise<Record<string, { hashes: number[], metadata: object[] }>>} - Results mapped to collection IDs
  */
+
 async function queryMultipleCollections(collectionIds, searchText, topK, threshold) {
-    const args = await getAdditionalArgs([searchText]);
+    // BLAEZE CUSTOM: Dodanie Prefixu Wyszukiwania
+    let processedSearchText = searchText;
+    if (settings.search_prefix && !processedSearchText.startsWith(settings.search_prefix)) {
+        processedSearchText = settings.search_prefix + processedSearchText;
+    }
+    const args = await getAdditionalArgs([processedSearchText]); // Zmienione
     const response = await fetch('/api/vector/query-multi', {
         method: 'POST',
         headers: getRequestHeaders(),
         body: JSON.stringify({
             ...getVectorsRequestBody(args),
             collectionIds: collectionIds,
-            searchText: searchText,
+            searchText: processedSearchText, // Zmienione
             topK: topK,
             source: settings.source,
             threshold: threshold ?? settings.score_threshold,
         }),
     });
-
     if (!response.ok) {
         throw new Error('Failed to query multiple collections');
     }
-
     return await response.json();
 }
 
@@ -2395,6 +2416,20 @@ export async function init() {
         },
     }));
     // --- BLAEZE CUSTOM RETAIN SLASH COMMAND END ---
+
+    // --- BLAEZE CUSTOM: ASYMMETRIC PREFIX LISTENERS ---
+    $('#vector_search_prefix_input').val(settings.search_prefix).on('input', () => {
+        settings.search_prefix = String($('#vector_search_prefix_input').val());
+        Object.assign(extension_settings.vectors, settings);
+        saveSettingsDebounced();
+    });
+    $('#vector_ingestion_prefix_input').val(settings.ingestion_prefix).on('input', () => {
+        settings.ingestion_prefix = String($('#vector_ingestion_prefix_input').val());
+        Object.assign(extension_settings.vectors, settings);
+        saveSettingsDebounced();
+    });
+    // --------------------------------------------------
+
 
     registerDebugFunction('purge-everything', 'Purge all vector indices', 'Obliterate all stored vectors for all sources. No mercy.', async () => {
         if (!confirm('Are you sure?')) {
