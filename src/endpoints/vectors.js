@@ -52,45 +52,51 @@ const SOURCES = [
  * @returns {Promise<number[]>} - The vector for the text
  */
 async function getVector(source, sourceSettings, text, isQuery, directories) {
+    // BLAEZE CUSTOM: Magia automatycznego prefixowania na podstawie flagi isQuery!
+    const prefix = isQuery ? sourceSettings?.search_prefix : sourceSettings?.ingestion_prefix;
+    let processedText = text;
+    if (prefix && !processedText.startsWith(prefix)) {
+        processedText = prefix + processedText;
+    }
     switch (source) {
         case 'nomicai':
-            return getNomicAIVector(text, source, directories);
+            return getNomicAIVector(processedText, source, directories);
         case 'togetherai':
         case 'mistral':
         case 'openai':
-            return getOpenAIVector(text, source, directories, sourceSettings.model);
+            return getOpenAIVector(processedText, source, directories, sourceSettings.model);
         case 'electronhub':
-            return getOpenAIVector(text, source, directories, sourceSettings.model);
+            return getOpenAIVector(processedText, source, directories, sourceSettings.model);
         case 'openrouter':
-            return getOpenAIVector(text, source, directories, sourceSettings.model);
+            return getOpenAIVector(processedText, source, directories, sourceSettings.model);
         case 'transformers':
-            return getTransformersVector(text);
+            return getTransformersVector(processedText);
         case 'extras':
-            return getExtrasVector(text, sourceSettings.extrasUrl, sourceSettings.extrasKey);
+            return getExtrasVector(processedText, sourceSettings.extrasUrl, sourceSettings.extrasKey);
         case 'palm':
-            return getMakerSuiteVector(text, sourceSettings.model, sourceSettings.request);
+            return getMakerSuiteVector(processedText, sourceSettings.model, sourceSettings.request);
         case 'vertexai':
-            return getVertexVector(text, sourceSettings.model, sourceSettings.request);
+            return getVertexVector(processedText, sourceSettings.model, sourceSettings.request);
         case 'cohere':
-            return getCohereVector(text, isQuery, directories, sourceSettings.model);
+            return getCohereVector(processedText, isQuery, directories, sourceSettings.model);
         case 'llamacpp':
-            return getLlamaCppVector(text, sourceSettings.apiUrl, directories);
+            return getLlamaCppVector(processedText, sourceSettings.apiUrl, directories);
         case 'vllm':
-            return getVllmVector(text, sourceSettings.apiUrl, sourceSettings.model, directories);
+            return getVllmVector(processedText, sourceSettings.apiUrl, sourceSettings.model, directories);
         case 'ollama':
-            return getOllamaVector(text, sourceSettings.apiUrl, sourceSettings.model, sourceSettings.keep, directories);
+            return getOllamaVector(processedText, sourceSettings.apiUrl, sourceSettings.model, sourceSettings.keep, directories);
         case 'webllm':
-            return sourceSettings.embeddings[text];
+            return sourceSettings.embeddings[text]; // UWAGA: Omijamy prefix dla klucza słownika!
         case 'koboldcpp':
-            return sourceSettings.embeddings[text];
+            return sourceSettings.embeddings[text]; // UWAGA: Omijamy prefix dla klucza słownika!
         case 'chutes':
-            return getOpenAIVector(text, source, directories, sourceSettings.model);
+            return getOpenAIVector(processedText, source, directories, sourceSettings.model);
         case 'nanogpt':
-            return getOpenAIVector(text, source, directories, sourceSettings.model);
+            return getOpenAIVector(processedText, source, directories, sourceSettings.model);
         case 'siliconflow':
-            return getOpenAIVector(text, source, directories, sourceSettings.model, sourceSettings.urlOverride);
+            return getOpenAIVector(processedText, source, directories, sourceSettings.model, sourceSettings.urlOverride);
         case 'workers_ai':
-            return getOpenAIVector(text, source, directories, sourceSettings.model, sourceSettings.urlOverride);
+            return getOpenAIVector(processedText, source, directories, sourceSettings.model, sourceSettings.urlOverride);
     }
 
     throw new Error(`Unknown vector source ${source}`);
@@ -106,11 +112,19 @@ async function getVector(source, sourceSettings, text, isQuery, directories) {
  * @returns {Promise<number[][]>} - The array of vectors for the texts
  */
 async function getBatchVector(source, sourceSettings, texts, isQuery, directories) {
+    // BLAEZE CUSTOM: Mapowanie całej tablicy
+    const prefix = isQuery ? sourceSettings?.search_prefix : sourceSettings?.ingestion_prefix;
+    const processedTexts = prefix ? texts.map(t => t.startsWith(prefix) ? t : prefix + t) : texts;
     const batchSize = 10;
-    const batches = Array(Math.ceil(texts.length / batchSize)).fill(undefined).map((_, i) => texts.slice(i * batchSize, i * batchSize + batchSize));
-
+    // Batch z prefixami (dla API wektorów)
+    const apiBatches = Array(Math.ceil(processedTexts.length / batchSize)).fill(undefined).map((_, i) => processedTexts.slice(i * batchSize, i * batchSize + batchSize));
+    // Batch surowy (jako klucze słownika dla WebLLM/Koboldcpp)
+    const originalBatches = Array(Math.ceil(texts.length / batchSize)).fill(undefined).map((_, i) => texts.slice(i * batchSize, i * batchSize + batchSize));
+    
     let results = [];
-    for (let batch of batches) {
+    for (let i = 0; i < apiBatches.length; i++) {
+        let batch = apiBatches[i];
+        let origBatch = originalBatches[i];
         switch (source) {
             case 'nomicai':
                 results.push(...await getNomicAIBatchVector(batch, source, directories));
@@ -151,10 +165,10 @@ async function getBatchVector(source, sourceSettings, texts, isQuery, directorie
                 results.push(...await getOllamaBatchVector(batch, sourceSettings.apiUrl, sourceSettings.model, sourceSettings.keep, directories));
                 break;
             case 'webllm':
-                results.push(...texts.map(x => sourceSettings.embeddings[x]));
+                results.push(...origBatch.map(x => sourceSettings.embeddings[x])); // Wykorzystujemy origBatch!
                 break;
             case 'koboldcpp':
-                results.push(...texts.map(x => sourceSettings.embeddings[x]));
+                results.push(...origBatch.map(x => sourceSettings.embeddings[x])); // Wykorzystujemy origBatch!
                 break;
             case 'chutes':
                 results.push(...await getOpenAIBatchVector(batch, source, directories, sourceSettings.model));
@@ -183,101 +197,109 @@ async function getBatchVector(source, sourceSettings, texts, isQuery, directorie
  * @returns {object} - An object that can be used as `sourceSettings` in functions that take that parameter.
  */
 function getSourceSettings(source, request) {
-    switch (source) {
-        case 'togetherai':
-            return {
-                model: String(request.body.model),
-            };
-        case 'openai':
-            return {
-                model: String(request.body.model),
-            };
-        case 'electronhub':
-            return {
-                model: String(request.body.model || 'text-embedding-3-small'),
-            };
-        case 'openrouter':
-            return {
-                model: String(request.body.model) || 'openai/text-embedding-3-large',
-            };
-        case 'cohere':
-            return {
-                model: String(request.body.model),
-            };
-        case 'llamacpp':
-            return {
-                apiUrl: String(request.body.apiUrl),
-            };
-        case 'vllm':
-            return {
-                apiUrl: String(request.body.apiUrl),
-                model: String(request.body.model),
-            };
-        case 'ollama':
-            return {
-                apiUrl: String(request.body.apiUrl),
-                model: String(request.body.model),
-                keep: Boolean(request.body.keep),
-            };
-        case 'extras':
-            return {
-                extrasUrl: String(request.body.extrasUrl),
-                extrasKey: String(request.body.extrasKey),
-            };
-        case 'transformers':
-            return {
-                model: getConfigValue('extensions.models.embedding', ''),
-            };
-        case 'palm':
-        case 'vertexai':
-            return {
-                model: String(request.body.model || 'text-embedding-005'),
-                request: request, // Pass the request object to get API key and URL
-            };
-        case 'mistral':
-            return {
-                model: 'mistral-embed',
-            };
-        case 'nomicai':
-            return {
-                model: 'nomic-embed-text-v1.5',
-            };
-        case 'webllm':
-            return {
-                model: String(request.body.model),
-                embeddings: request.body.embeddings ?? {},
-            };
-        case 'koboldcpp':
-            return {
-                model: String(request.body.model),
-                embeddings: request.body.embeddings ?? {},
-            };
-        case 'chutes':
-            return {
-                model: String(request.body.model || 'chutes-qwen-qwen3-embedding-8b'),
-            };
-        case 'nanogpt':
-            return {
-                model: String(request.body.model || 'text-embedding-3-small'),
-            };
-        case 'siliconflow':
-            return {
-                model: String(request.body.model || 'Qwen/Qwen3-Embedding-0.6B'),
-                urlOverride: request.body.siliconflow_endpoint === 'cn'
-                    ? 'https://api.siliconflow.cn/v1' : null,
-            };
-        case 'workers_ai': {
-            const accountId = String(request.body.workers_ai_account_id || '').trim();
-            return {
-                model: String(request.body.model || '@cf/baai/bge-m3'),
-                urlOverride: accountId
-                    ? `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1`
-                    : null,
-            };
+    // BLAEZE CUSTOM: Zamykamy oryginalny switch w mini-funkcji, żeby łatwo przechwycić obiekt
+    const extractSettings = () => {
+        switch (source) {
+            case 'togetherai':
+                return {
+                    model: String(request.body.model),
+                };
+            case 'openai':
+                return {
+                    model: String(request.body.model),
+                };
+            case 'electronhub':
+                return {
+                    model: String(request.body.model || 'text-embedding-3-small'),
+                };
+            case 'openrouter':
+                return {
+                    model: String(request.body.model) || 'openai/text-embedding-3-large',
+                };
+            case 'cohere':
+                return {
+                    model: String(request.body.model),
+                };
+            case 'llamacpp':
+                return {
+                    apiUrl: String(request.body.apiUrl),
+                };
+            case 'vllm':
+                return {
+                    apiUrl: String(request.body.apiUrl),
+                    model: String(request.body.model),
+                };
+            case 'ollama':
+                return {
+                    apiUrl: String(request.body.apiUrl),
+                    model: String(request.body.model),
+                    keep: Boolean(request.body.keep),
+                };
+            case 'extras':
+                return {
+                    extrasUrl: String(request.body.extrasUrl),
+                    extrasKey: String(request.body.extrasKey),
+                };
+            case 'transformers':
+                return {
+                    model: getConfigValue('extensions.models.embedding', ''),
+                };
+            case 'palm':
+            case 'vertexai':
+                return {
+                    model: String(request.body.model || 'text-embedding-005'),
+                    request: request, // Pass the request object to get API key and URL
+                };
+            case 'mistral':
+                return {
+                    model: 'mistral-embed',
+                };
+            case 'nomicai':
+                return {
+                    model: 'nomic-embed-text-v1.5',
+                };
+            case 'webllm':
+                return {
+                    model: String(request.body.model),
+                    embeddings: request.body.embeddings ?? {},
+                };
+            case 'koboldcpp':
+                return {
+                    model: String(request.body.model),
+                    embeddings: request.body.embeddings ?? {},
+                };
+            case 'chutes':
+                return {
+                    model: String(request.body.model || 'chutes-qwen-qwen3-embedding-8b'),
+                };
+            case 'nanogpt':
+                return {
+                    model: String(request.body.model || 'text-embedding-3-small'),
+                };
+            case 'siliconflow':
+                return {
+                    model: String(request.body.model || 'Qwen/Qwen3-Embedding-0.6B'),
+                    urlOverride: request.body.siliconflow_endpoint === 'cn'
+                        ? 'https://api.siliconflow.cn/v1' : null,
+                };
+            case 'workers_ai': {
+                const accountId = String(request.body.workers_ai_account_id || '').trim();
+                return {
+                    model: String(request.body.model || '@cf/baai/bge-m3'),
+                    urlOverride: accountId
+                        ? `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/v1`
+                        : null,
+                };
+            }
+            default:
+                return {};
         }
-        default:
-            return {};
     }
+    const settings = extractSettings();
+    // BLAEZE CUSTOM: Doklejamy nasze prefixy z request.body
+    settings.search_prefix = request.body?.search_prefix || "";
+    settings.ingestion_prefix = request.body?.ingestion_prefix || "";
+    return settings;
 }
 
 /**
