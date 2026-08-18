@@ -238,20 +238,28 @@ router.post('/caption-image', async (request, response) => {
         const model = request.body.model || 'gemini-2.0-flash';
         const { url, headers, apiName, safetySettings } = await getGoogleApiConfig(request, model);
 
+        const mediaPart = {
+            inlineData: {
+                mimeType: mimeType,
+                data: base64Data,
+            },
+        };
+        // --- BLAEZE'S CUSTOM VIDEO FPS PAYLOAD ---
+        if (mimeType.startsWith('video/') && request.body.video_fps) {
+            mediaPart.videoMetadata = { fps: Number(request.body.video_fps) };
+        }
+        // -----------------------------------------
         const body = {
             contents: [{
                 role: 'user',
                 parts: [
                     { text: request.body.prompt },
-                    {
-                        inlineData: {
-                            mimeType: mimeType,
-                            data: base64Data,
-                        },
-                    }],
+                    mediaPart
+                ],
             }],
             safetySettings: safetySettings,
         };
+
 
         console.debug(`${apiName} captioning request`, model, body);
 

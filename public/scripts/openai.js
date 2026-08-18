@@ -973,7 +973,11 @@ async function populateChatHistory(messages, prompts, chatCompletion, type = nul
                 await chatMessage.addImage(media.url);
             }
             if (videoInlining && media.type === MEDIA_TYPE.VIDEO) {
-                await chatMessage.addVideo(media.url);
+                // messages to oryginalna tablica, chatPool to odwrócona.
+                // Obliczamy czy aktualny index w pętli odnosi się do ostatniej wiadomości usera.
+                const isLastUserMsg = (messages.length - 1 - index) === lastUserIdx;
+                const targetFps = isLastUserMsg ? (oai_settings.video_sample_rate || null) : null;
+                await chatMessage.addVideo(media.url, targetFps);
             }
             if (audioInlining && media.type === MEDIA_TYPE.AUDIO) {
                 await chatMessage.addAudio(media.url);
@@ -3595,8 +3599,11 @@ class Message {
      * @param {string} video Video URL or Data URL.
      * @returns {Promise<void>}
      */
-    async addVideo(video) {
+    
+    async addVideo(video, fps = null) {
         this.content = this.ensureContentIsArray();
+
+
         const isDataUrl = isDataURL(video);
         if (!isDataUrl) {
             try {
@@ -3612,7 +3619,7 @@ class Message {
 
         // Note: No compression for videos (unlike images)
         const quality = oai_settings.inline_image_quality || default_settings.inline_image_quality;
-        this.content.push({ type: 'video_url', video_url: { 'url': video, 'detail': quality } });
+        this.content.push({ type: 'video_url', video_url: { 'url': video, 'detail': quality, 'fps': fps } });
 
         try {
             // Using Gemini calculation (263 tokens per second)
@@ -4263,6 +4270,8 @@ function loadOpenAISettings(data, settings) {
     openai_settings.forEach(function (item, i) {
         openai_settings[i] = JSON.parse(item);
     });
+
+    $('#video_sample_rate').val(oai_settings.video_sample_rate || '');
 
     $('#settings_preset_openai').empty();
     const settingNames = {};
@@ -6949,6 +6958,11 @@ export function initOpenAI() {
 
     $('#openai_inline_image_quality').on('input', function () {
         oai_settings.inline_image_quality = String($(this).val());
+        saveSettingsDebounced();
+    });
+
+    $('#video_sample_rate').on('input', function () {
+        oai_settings.video_sample_rate = $(this).val();
         saveSettingsDebounced();
     });
 

@@ -31,6 +31,9 @@ const GOOGLE_MODEL_MIGRATIONS = new Map([
 function migrateSettings() {
     if (extension_settings.caption.local !== undefined) {
         extension_settings.caption.source = extension_settings.caption.local ? 'local' : 'extras';
+        if (extension_settings.caption.video_fps === undefined) {
+            extension_settings.caption.video_fps = '';
+        }    
     }
 
     delete extension_settings.caption.local;
@@ -650,6 +653,7 @@ export async function init() {
     $('#caption_prompt_ask').prop('checked', !!(extension_settings.caption.prompt_ask));
     $('#caption_auto_mode').prop('checked', !!(extension_settings.caption.auto_mode));
     $('#caption_source').val(extension_settings.caption.source);
+    $('#caption_video_fps').val(extension_settings.caption.video_fps || '');
     $('#caption_prompt').val(extension_settings.caption.prompt);
     $('#caption_template').val(extension_settings.caption.template);
     $('#caption_refine_mode').on('input', onRefineModeInput);
@@ -660,6 +664,10 @@ export async function init() {
     });
     $('#caption_prompt').on('input', () => {
         extension_settings.caption.prompt = String($('#caption_prompt').val());
+        saveSettingsDebounced();
+    });
+    $('#caption_video_fps').on('input', () => {
+        extension_settings.caption.video_fps = $('#caption_video_fps').val();
         saveSettingsDebounced();
     });
     $('#caption_template').on('input', () => {

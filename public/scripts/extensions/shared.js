@@ -58,6 +58,12 @@ export async function getMultimodalCaption(base64Img, prompt) {
         model: extension_settings.caption.multimodal_model || 'gpt-4-turbo',
     };
 
+    // --- BLAEZE'S CUSTOM VIDEO FPS PAYLOAD ---
+    if (['google', 'vertexai'].includes(extension_settings.caption.multimodal_api) && extension_settings.caption.video_fps) {
+        requestBody.video_fps = Number(extension_settings.caption.video_fps);
+    }
+    // -----------------------------------------
+
     // Add Vertex AI specific parameters if using Vertex AI
     if (extension_settings.caption.multimodal_api === 'vertexai') {
         requestBody.vertexai_auth_mode = oai_settings.vertexai_auth_mode;

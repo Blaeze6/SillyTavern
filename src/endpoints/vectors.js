@@ -58,6 +58,9 @@ async function getVector(source, sourceSettings, text, isQuery, directories) {
     if (prefix && !processedText.startsWith(prefix)) {
         processedText = prefix + processedText;
     }
+
+    console.log(`[RAG PAYLOAD CHECK (Single)] isQuery: ${isQuery} | Wysłano do Jiny: "${processedText.substring(0, 80)}..."`);
+
     switch (source) {
         case 'nomicai':
             return getNomicAIVector(processedText, source, directories);
@@ -116,6 +119,11 @@ async function getBatchVector(source, sourceSettings, texts, isQuery, directorie
     const prefix = isQuery ? sourceSettings?.search_prefix : sourceSettings?.ingestion_prefix;
     const processedTexts = prefix ? texts.map(t => t.startsWith(prefix) ? t : prefix + t) : texts;
     const batchSize = 10;
+
+    if (processedTexts.length > 0) {
+        console.log(`[RAG PAYLOAD CHECK (Batch)] isQuery: ${isQuery} | Wysłano do Jiny (pierwszy chunk): "${String(processedTexts[0]).substring(0, 80)}..."`);
+    }
+
     // Batch z prefixami (dla API wektorów)
     const apiBatches = Array(Math.ceil(processedTexts.length / batchSize)).fill(undefined).map((_, i) => processedTexts.slice(i * batchSize, i * batchSize + batchSize));
     // Batch surowy (jako klucze słownika dla WebLLM/Koboldcpp)
@@ -409,6 +417,7 @@ async function queryCollection(directories, collectionId, source, sourceSettings
     const vector = await getVector(source, sourceSettings, searchText, true, directories);
 
     const result = await store.queryItems(vector, topK);
+    console.log(`[RAG DEBUG] Wyniki dla ${collectionId}:`, result.map(r => r.score.toFixed(3)));
     const metadata = result.filter(x => x.score >= threshold).map(x => x.item.metadata);
     const hashes = result.map(x => Number(x.item.metadata.hash));
     return { metadata, hashes };
@@ -434,6 +443,7 @@ async function multiQueryCollection(directories, collectionIds, source, sourceSe
         const store = await getIndex(directories, collectionId, source, sourceSettings);
         const result = await store.queryItems(vector, topK);
         results.push(...result.map(result => ({ collectionId, result })));
+        console.log(`[RAG DEBUG] Wyniki dla ${collectionId}:`, result.map(r => r.score.toFixed(3)));
     }
 
     // Sort results by descending similarity, apply threshold, and take top K

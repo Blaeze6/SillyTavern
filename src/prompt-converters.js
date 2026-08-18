@@ -508,7 +508,7 @@ export function convertGooglePrompt(messages, model, useSysPrompt, names) {
         //create the prompt parts
         const parts = [];
         message.content.forEach((part) => {
-            const addDataUrlPart = (/** @type {string} */ url, /** @type {string} */ defaultMimeType, /** @type {string?} */ detail = null) => {
+            const addDataUrlPart = (/** @type {string} */ url, /** @type {string} */ defaultMimeType, /** @type {string?} */ detail = null, fps = null) => {
                 if (url && url.startsWith('data:')) {
                     const [header, base64Data] = url.split(',');
                     const mimeType = header.match(/data:([^;]+)/)?.[1] || defaultMimeType;
@@ -521,8 +521,14 @@ export function convertGooglePrompt(messages, model, useSysPrompt, names) {
                         },
                     };
 
+                    // --- BLAEZE'S CUSTOM VIDEO FPS PAYLOAD ---
+                    if (fps && mimeType.startsWith('video/')) {
+                        part.videoMetadata = { fps: Number(fps) };
+                    }
+                    // -----------------------------------------
                     // https://ai.google.dev/gemini-api/docs/gemini-3#media_resolution
                     if (/gemini-3/.test(model) && mediaResolution) {
+
                         part.mediaResolution = {
                             level: mediaResolution,
                         };
@@ -561,7 +567,8 @@ export function convertGooglePrompt(messages, model, useSysPrompt, names) {
             } else if (part.type === 'video_url') {
                 const videoUrl = part.video_url?.url;
                 const detail = part.video_url?.detail;
-                addDataUrlPart(videoUrl, 'video/mp4', detail);
+                const fps = part.video_url?.fps;
+                addDataUrlPart(videoUrl, 'video/mp4', detail, fps);
             } else if (part.type === 'audio_url') {
                 const audioUrl = part.audio_url?.url;
                 addDataUrlPart(audioUrl, 'audio/mpeg');
