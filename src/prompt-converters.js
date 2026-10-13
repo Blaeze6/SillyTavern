@@ -1268,7 +1268,7 @@ export function calculateGoogleBudgetTokens(maxTokens, reasoningEffort, model) {
 
         return budgetTokens;
     }
-
+/*
     function getGemini3FlashBudget() {
         // https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash
         const noMinimalThinking = /gemini-3\.[78]-flash/.test(model);
@@ -1330,7 +1330,44 @@ export function calculateGoogleBudgetTokens(maxTokens, reasoningEffort, model) {
     }
 
     return null;
+*/
+
+//--------------------- BLAEZE EDIT / FIX START ---------------------------------
+    function getGeminiThinkingLevel() {
+        const noMinimalThinking = /gemini-3\.[789]-flash|^gemini-[4-9]|gemini-3[.\d]*-pro/.test(model);
+        switch (reasoningEffort) {
+            case REASONING_EFFORT.auto:
+                return null;
+            case REASONING_EFFORT.min:
+                return noMinimalThinking ? 'low' : 'minimal';
+            case REASONING_EFFORT.low:
+                return 'low';
+            case REASONING_EFFORT.medium:
+                return 'medium';
+            case REASONING_EFFORT.high:
+                return 'high';
+            case REASONING_EFFORT.max:
+                return 'high';
+        }
+        return null;
+    }
+    if (/^gemini-[3-9]|^gemini-robotics-er-2/.test(model)) {
+        return getGeminiThinkingLevel();
+    }
+    if (/flash-lite/.test(model)) {
+        return getFlashLiteBudget();
+    }
+    if (/flash/.test(model)) {
+        return getFlashBudget();
+    }
+    if (/pro/.test(model)) {
+        return getProBudget();
+    }
+    return null;
+//--------------------- BLAEZE EDIT / FIX END -----------------------------------
 }
+
+
 
 /**
  * Embed media content in OpenRouter messages (OpenAI-compatible).

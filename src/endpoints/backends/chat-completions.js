@@ -522,11 +522,18 @@ async function sendMakerSuiteRequest(request, response) {
             'gemini-3-pro-image',
             'gemini-3.1-flash-image',
         ];
-
+    /*
         const isThinkingConfigModel = m => (/^gemini-2.5-(flash|pro)/.test(m) && !/-image(-preview)?$/.test(m)) || (/^gemini-3[.\d]*-(flash|pro)/.test(m));
         const isImageSizeModel = m => /^gemini-3/.test(m);
         // https://ai.google.dev/gemini-api/docs/latest-model#api-changes-and-parameter-updates
         const noSamplingModel = /gemini-3\.[678]-flash|gemini-3\.5-flash-lite/.test(model);
+    */
+    //--------------------- BLAEZE EDIT / FIX START ---------------------------------
+        const isThinkingConfigModel = m => ((/^gemini-2\.5-(flash|pro)/.test(m) || /^gemini-[3-9]/.test(m) || /^gemini-robotics-er-2/.test(m)) && !/-image(-preview)?$/.test(m));
+        const isImageSizeModel = m => /^gemini-[3-9]/.test(m);
+        // https://ai.google.dev/gemini-api/docs/latest-model#api-changes-and-parameter-updates
+        const noSamplingModel = /gemini-3\.[6-9]|gemini-3\.5-flash-lite|^gemini-[4-9]/.test(model);
+    //--------------------- BLAEZE EDIT / FIX END -----------------------------------
 
         const noSearchModels = [
             'gemini-2.0-flash-lite',
